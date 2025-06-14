@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field
 
 # openaiのインポート
 import openai
-from langchain_community.vectorstores import FAISS
-# ★修正: langchain_openaiではなく、langchainから直接インポート
-from langchain.embeddings import OpenAIEmbeddings
+# FAISSの代わりに簡易検索を使用
+# from langchain_community.vectorstores import FAISS
+# from langchain.embeddings import OpenAIEmbeddings
 from langchain.docstore.document import Document
 
 # 1. Pydanticモデル定義 (変更なし)
@@ -39,7 +39,7 @@ class AskRequest(BaseModel):
     wanted_plans: Optional[int] = Field(default=2, ge=1, le=5)
 
 # 2. グローバル変数
-vectorstore: Optional[FAISS] = None
+# vectorstore: Optional[FAISS] = None  # FAISSは使わない
 df_vectordb: Optional[pd.DataFrame] = None
 is_ai_ready = False
 
@@ -55,26 +55,25 @@ def correct_and_summarize(text: str) -> str:
     )
     return response.choices[0].message.content.strip()
 
-def perform_similarity_search(original_text: str) -> List[str]:
-    docs_and_scores = vectorstore.similarity_search_with_score(original_text, k=20)
-    similarities = []
-    for doc, score in docs_and_scores:
-        df_index = doc.metadata['df_index']
-        db_row = df_vectordb.loc[df_index]
-        # カラム名の確認（デバッグ用）
-        print(f"Available columns: {db_row.index.tolist()}")
-        similarities.append({
-            "id": db_row.get('ID'), 
-            "similarity": 1 - score, 
-            "category": db_row.get('カテゴリ', 'Knowledge')  # 日本語カラム名に対応
-        })
-    similarities.sort(key=lambda x: x['similarity'], reverse=True)
-    config = {'Estimate': 5, 'Catalog': 5, 'Knowledge': 5}
-    selected_ids = []
-    for cat, k in config.items():
-        cat_items = [s for s in similarities if s['category'] == cat]
-        selected_ids.extend([item['id'] for item in cat_items[:k]])
-    return list(set(selected_ids))
+def perform_similarity_search_simple(original_text: str) -> List[str]:
+    """FAISSを使わない簡易版の類似検索"""
+    # キーワードベースの簡易検索
+    keywords = original_text.lower().split()
+    matched_ids = []
+    
+    for idx, row in df_vectordb.iterrows():
+        text = str(row.get('本文', '')).lower()
+        # キーワードが含まれているかチェック
+        if any(keyword in text for keyword in keywords):
+            matched_ids.append(row.get('ID'))
+            
+    # カテゴリごとに最大5件まで
+    result_ids = []
+    for category in ['Estimate', 'Catalog', 'Knowledge']:
+        cat_ids = [id for id in matched_ids if df_vectordb[df_vectordb['ID'] == id]['カテゴリ'].values[0] == category]
+        result_ids.extend(cat_ids[:5])
+    
+    return result_ids[:15]  # 最大15件
 
 def build_gpt_prompt(corrected_text: str, matched_ids: List[str], wanted_plans: int) -> str:
     reference_texts = {'Estimate': [], 'Catalog': [], 'Knowledge': []}
@@ -152,7 +151,7 @@ def call_gpt_for_proposal(prompt: str) -> dict:
 # 5. FastAPIイベントハンドラとエンドポイント
 @app.on_event("startup")
 def startup_event():
-    global vectorstore, df_vectordb, is_ai_ready
+    global df_vectordb, is_ai_ready
     try:
         load_dotenv()
         openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -160,17 +159,10 @@ def startup_event():
         
         file_path = "伊藤さん2 - VectorDB (1).csv"
         df_vectordb = pd.read_csv(file_path, engine='python', keep_default_na=False)
-        valid_rows = df_vectordb[df_vectordb['本文'].astype(str).str.strip() != ''].copy()
-        valid_rows['df_index'] = valid_rows.index
-        documents = [Document(page_content=row['本文'], metadata={'df_index': idx}) for idx, row in valid_rows.iterrows()]
-        if not documents: raise ValueError("No valid documents found in CSV.")
-            
-        # ★修正: 古いlangchainの初期化方法
-        embeddings_model = OpenAIEmbeddings(openai_api_key=openai.api_key)
         
-        vectorstore = FAISS.from_documents(documents=documents, embedding=embeddings_model)
+        # FAISSを使わないシンプルな起動
         is_ai_ready = True
-        print("✅ AIシステムが正常に起動しました。(Final Stable v0.28.1)")
+        print("✅ AIシステムが正常に起動しました。(Final Stable v0.28.1 - Simple Search)")
 
     except Exception as e:
         is_ai_ready = False
@@ -189,13 +181,13 @@ async def ask_ai_endpoint(request: AskRequest):
     if not is_ai_ready: raise HTTPException(status_code=503, detail="AI is not ready.")
     try:
         corrected_text = correct_and_summarize(request.question)
-        matched_ids = perform_similarity_search(request.question)
+        matched_ids = perform_similarity_search_simple(request.question)  # 簡易検索を使用
         
         # デバッグ情報
         print(f"Corrected text: {corrected_text}")
         print(f"Matched IDs: {matched_ids}")
         
-        final_prompt = build_gpt_prompt(corrected_text, matched_ids, wanted_plans=2)
+        final_prompt = build_gpt_prompt(corrected_text, matched_ids, wanted_plans=request.wanted_plans)
         print(f"Final prompt:\n{final_prompt}")
         
         proposal_json = call_gpt_for_proposal(final_prompt)
