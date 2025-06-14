@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI事務員「伊藤さん2」</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* 背景装飾 */
+        .bg-decoration {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            pointer-events: none;
+        }
+
+        /* 左側エリア - キャラクター */
+        .character-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .character-container {
+            background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .character-image {
+            width: 300px;
+            height: 300px;
+            border-radius: 15px;
+            object-fit: cover;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .character-image:hover {
+            transform: scale(1.05);
+        }
+
+        .character-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .character-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .affection-meter {
+            background: #e2e8f0;
+            border-radius: 10px;
+            height: 20px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .affection-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #ff8e8e, #ffb3b3);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+            position: relative;
+        }
+
+        .affection-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 12px;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        /* メッセージボックス */
+        .message-box {
+            background: linear-gradient(145deg, #4a5568, #2d3748);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            color: white;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .message-box::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 30px;
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 10px solid #4a5568;
+        }
+
+        .message-text {
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; }
+            30% { opacity: 1; }
+        }
+
+        /* 入力エリア */
+        .input-area {
+            margin-top: 20px;
+        }
+
+        .text-input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .text-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .send-button {
+            padding: 12px 20px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .send-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .voice-button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+
+        .voice-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .voice-button.listening {
+            background: linear-gradient(45deg, #e53e3e, #fc8181);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .sample-requests {
+            margin-top: 15px;
+        }
+
+        .sample-title {
+            font-size: 14px;
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .sample-request {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            background: rgba(255,255,255,0.7);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            text-align: left;
+            cursor: pointer;
+            font-size: 12px;
+            color: #2d3748;
+            transition: all 0.3s ease;
+        }
+
+        .sample-request:hover {
+            background: rgba(255,255,255,0.9);
+            transform: translateX(5px);
+        }
+
+        /* 右側エリア - 見積もり・履歴 */
+        .content-area {
+            flex: 1;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-left: 1px solid rgba(255,255,255,0.2);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 1;
+        }
+
+        .content-header {
+            padding: 20px;
+            border-bottom: 1px solid #e2e8f0;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .header-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .header-tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab-button {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button.active {
+            background: rgba(255,255,255,0.3);
+            font-weight: bold;
+        }
+
+        .tab-button:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
+        .content-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* 見積もり表示 */
+        .estimate-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .estimate-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .estimate-title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .estimate-date {
+            color: #666;
+        }
+
+        .customer-info {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .customer-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .customer-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .customer-value {
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .estimate-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+
+        .estimate-table th {
+            background: #4a5568;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .estimate-table th:last-child,
+        .estimate-table td:last-child {
+            text-align: right;
+        }
+
+        .estimate-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .estimate-table tr:hover {
+            background: #f7fafc;
+        }
+
+        .estimate-summary {
+            border-top: 2px solid #4a5568;
+            padding-top: 20px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .summary-row.total {
+            font-size: 20px;
+            font-weight: bold;
+            color: #e53e3e;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .estimate-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .action-button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .action-button.primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .action-button.secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        /* 履歴表示 */
+        .history-container {
+            display: none;
+        }
+
+        .history-item {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .history-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .history-customer {
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .history-date {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .history-project {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .history-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-total {
+            font-weight: bold;
+            color: #e53e3e;
+            font-size: 18px;
+        }
+
+        .history-status {
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-approved {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-submitted {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .status-draft {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        /* 空の状態 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #a0aec0;
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .empty-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .empty-description {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .character-area {
+                min-height: 60vh;
+            }
+
+            .content-area {
+                border-left: none;
+                border-top: 1px solid rgba(255,255,255,0.2);
+            }
+
+            .character-image {
+                width: 250px;
+                height: 250px;
+            }
+
+            .customer-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+        }
+
+        /* ローディング状態 */
+        .character-image.processing {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-decoration"></div>
+
+    <div class="main-container">
+        <!-- 左側：キャラクターエリア -->
+        <div class="character-area">
+            <div class="character-container">
+                <img id="character-image"
+                     src="http://gift-v.com/wp-content/uploads/2025/05/1afbda86-3a44-4e3f-9317-96577366fe25.png"
+                     alt="伊藤さくら"
+                     class="character-image">
+
+                <div class="character-name">伊藤 さくら</div>
+                <div class="character-title">AI事務員</div>
+
+                <div class="affection-meter">
+                    <div id="affection-fill" class="affection-fill" style="width: 50%;"></div>
+                    <div class="affection-text">好感度: <span id="affection-value">50</span></div>
+                </div>
+
+                <div class="message-box">
+                    <div id="message-text" class="message-text">
+                        こんにちは！AI事務員の伊藤です。見積もり作成のお手伝いをさせていただきます。
+                    </div>
+                    <div id="typing-indicator" class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+
+                <div class="input-area">
+                    <div class="text-input-container">
+                        <input type="text"
+                               id="text-input"
+                               class="text-input"
+                               placeholder="見積もり内容をテキストで入力...">
+                        <button id="send-button" class="send-button">送信</button>
+                    </div>
+
+                    <button id="voice-button" class="voice-button">
+                         音声で話しかける
+                    </button>
+
+                    <div style="margin-bottom: 15px;">
+                        <label for="wanted-plans" class="sample-title">希望提案数:</label>
+                        <select id="wanted-plans" style="padding: 8px; border-radius: 5px; border: 1px solid #e2e8f0;">
+                            <option value="1">1案</option>
+                            <option value="2" selected>2案</option>
+                            <option value="3">3案</option>
+                            <option value="4">4案</option>
+                            <option value="5">5案</option>
+                        </select>
+                    </div>
+
+                    <div class="sample-requests">
+                        <div class="sample-title">サンプルリクエスト:</div>
+                        <button class="sample-request" data-request="山田商事から新規Webサイトの見積もり依頼です。WordPressで15ページ、お問い合わせフォーム付き、月額保守もお願いします。">
+                            山田商事 - Webサイト構築（WP + 15P + フォーム + 保守）
+                        </button>
+                        <button class="sample-request" data-request="ABCコーポレーションのECサイト構築の見積もりをお願いします。商品数は約100点、決済機能とレスポンシブ対応必須です。">
+                            ABCコーポレーション - ECサイト構築（100商品 + 決済 + レスポンシブ）
+                        </button>
+                        <button class="sample-request" data-request="グローバルテックから緊急でLP3ページの制作依頼が来ました。デザイン込みで今月中に納品希望です。">
+                            グローバルテック - LP制作（3P + デザイン + 緊急対応）
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側：コンテンツエリア -->
+        <div class="content-area">
+            <div class="content-header">
+                <div class="header-title">見積もり管理システム</div>
+                <div class="header-tabs">
+                    <button id="tab-estimate" class="tab-button active">見積もり</button>
+                    <button id="tab-history" class="tab-button">履歴</button>
+                </div>
+            </div>
+
+            <div class="content-body">
+                <div id="estimate-area" class="estimate-container">
+                    <div class="empty-state">
+                        <div class="empty-icon"></div>
+                        <div class="empty-title">見積もりがここに表示されます</div>
+                        <div class="empty-description">
+                            左側の入力エリアから見積もり内容を入力してください。<br>
+                            音声またはテキストでの入力が可能です。
+                        </div>
+                    </div>
+                </div>
+
+                <div id="history-area" class="history-container">
+                    <!-- 履歴はデモのため静的に表示 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+            <script>
+/* === グローバル変数＆画像パス設定 === */
+let isListening = false;
+let recognition = null;
+let currentAffection = 50;
+let isProcessing = false;
+
+const characterImages = {
+    normal: 'http://gift-v.com/wp-content/uploads/2025/05/1afbda86-3a44-4e3f-9317-96577366fe25.png',
+    happy: 'http://gift-v.com/wp-content/uploads/2025/05/download.jpg',
+    angry: 'http://gift-v.com/wp-content/uploads/2025/05/download-1.jpg',
+    sad: 'http://gift-v.com/wp-content/uploads/2025/05/3e097320-32cf-4c59-9c48-3de3e4986da2.jpg',
+    joy: 'http://gift-v.com/wp-content/uploads/2025/05/Generated-Image-May-23-2025-10_08PM.jpeg',
+    thinking: 'http://gift-v.com/wp-content/uploads/2025/06/download.jpg',
+    idea: 'http://gift-v.com/wp-content/uploads/2025/06/download-1.jpg',
+    working: 'http://gift-v.com/wp-content/uploads/2025/06/28ada3f6-b59b-42e3-b4e2-59d376ca28c8.jpg'
+};
+
+const characterImage = document.getElementById('character-image');
+const messageText = document.getElementById('message-text');
+const typingIndicator = document.getElementById('typing-indicator');
+const textInput = document.getElementById('text-input');
+const sendButton = document.getElementById('send-button');
+const voiceButton = document.getElementById('voice-button');
+const wantedPlansSelect = document.getElementById('wanted-plans');
+const affectionFill = document.getElementById('affection-fill');
+const affectionValue = document.getElementById('affection-value');
+const estimateArea = document.getElementById('estimate-area');
+const historyArea = document.getElementById('history-area');
+const tabEstimate = document.getElementById('tab-estimate');
+const tabHistory = document.getElementById('tab-history');
+
+const API_ENDPOINT = 'http://127.0.0.1:8000/ask';
+
+/* === 初期化 === */
+document.addEventListener('DOMContentLoaded', () => {
+    initializeSpeechRecognition();
+    setupEventListeners();
+});
+
+/* === イベントリスナー === */
+function setupEventListeners() {
+    sendButton.addEventListener('click', handleTextSubmit);
+    textInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleTextSubmit(); });
+    voiceButton.addEventListener('click', toggleListening);
+    document.querySelectorAll('.sample-request').forEach(button => {
+        button.addEventListener('click', function() {
+            textInput.value = this.getAttribute('data-request');
+            handleTextSubmit();
+        });
+    });
+    tabEstimate.addEventListener('click', () => switchTab('estimate'));
+    tabHistory.addEventListener('click', () => switchTab('history'));
+}
+
+/* === 表情の切り替え関数 === */
+function changeExpression(expression) {
+    if (characterImages[expression]) characterImage.src = characterImages[expression];
+}
+function showExpression(expression, ms = 1000) {
+    changeExpression(expression);
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function processRequest(text) {
+    if (isProcessing) return;
+    isProcessing = true;
+    setProcessingState(true);
+
+    showMessage('依頼内容を確認しています...', 'thinking');
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    showMessage('作業中です…', 'working');
+    
+    try {
+        // processRequest関数内のfetch部分を修正
+const response = await fetch(API_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+        question: text,
+        wanted_plans: parseInt(wantedPlansSelect.value) || 2  // ★追加
+    })
+});
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `サーバーエラー: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        await showExpression('joy', 1000);
+        await showExpression('happy', 700);
+        showMessage('見積もりを作成しました！右の画面をご確認ください。', 'happy');
+        updateAffection(10);
+        
+        displayEstimate(result);
+        switchTab('estimate');
+
+    } catch (err) {
+        showMessage(`申し訳ございません。エラーが発生しました: ${err.message}`, 'sad');
+        updateAffection(-5);
+    } finally {
+        isProcessing = false;
+        setProcessingState(false);
+        textInput.value = '';
+    }
+}
+
+/* === UIヘルパー関数群 === */
+function handleTextSubmit() {
+    const text = textInput.value.trim();
+    if (!text || isProcessing) return;
+    processRequest(text);
+}
+
+function initializeSpeechRecognition() {
+    if ('webkitSpeechRecognition' in window) {
+        recognition = new webkitSpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'ja-JP';
+
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            textInput.value = transcript;
+            stopListening();
+            handleTextSubmit();
+        };
+        recognition.onerror = function(event) {
+            stopListening();
+            showMessage('申し訳ございません。音声認識でエラーが発生しました。', 'sad');
+        };
+        recognition.onend = function() {
+            if (isListening) stopListening();
+        };
+    } else {
+        voiceButton.style.display = 'none';
+        showMessage('お使いのブラウザは音声認識に対応していません。', 'sad');
+    }
+}
+function toggleListening() {
+    if (isListening) stopListening();
+    else startListening();
+}
+function startListening() {
+    if (!recognition) return;
+    isListening = true;
+    voiceButton.textContent = '🛑 お話しください...';
+    voiceButton.classList.add('listening');
+    recognition.start();
+    showMessage('はい、お聞きしています。', 'normal');
+}
+function stopListening() {
+    if (!recognition) return;
+    isListening = false;
+    voiceButton.textContent = '🎤 音声で話しかける';
+    voiceButton.classList.remove('listening');
+    recognition.stop();
+}
+function showMessage(message, expression = 'normal') {
+    messageText.style.display = 'block';
+    typingIndicator.style.display = 'none';
+    messageText.textContent = message;
+    changeExpression(expression);
+}
+function updateAffection(change) {
+    currentAffection = Math.max(0, Math.min(100, currentAffection + change));
+    affectionFill.style.width = currentAffection + '%';
+    affectionValue.textContent = currentAffection;
+}
+function setProcessingState(processing) {
+    sendButton.disabled = processing;
+    voiceButton.disabled = processing;
+    if (processing) {
+        characterImage.classList.add('processing');
+        messageText.style.display = 'none';
+        typingIndicator.style.display = 'flex';
+    } else {
+        characterImage.classList.remove('processing');
+        typingIndicator.style.display = 'none';
+        messageText.style.display = 'block';
+    }
+}
+function switchTab(tab) {
+    if (tab === 'estimate') {
+        estimateArea.style.display = 'block';
+        historyArea.style.display = 'none';
+        tabEstimate.classList.add('active');
+        tabHistory.classList.remove('active');
+    } else {
+        estimateArea.style.display = 'none';
+        historyArea.style.display = 'block';
+        tabEstimate.classList.remove('active');
+        tabHistory.classList.add('active');
+    }
+}
+function generateUserId() {
+    return 'user_web_' + Math.random().toString(36).substr(2, 9);
+}
+
+/* === 見積もり表示処理 === */
+function displayEstimate(proposalData) {
+    const html = generateEstimateHTML(proposalData);
+    estimateArea.innerHTML = html;
+}
+
+function generateEstimateHTML(data) {
+    if (!data || !data.proposals || data.proposals.length === 0) {
+        return `<div class="empty-state">
+                    <div class="empty-icon">&#x1f622;</div>
+                    <div class="empty-title">見積もりを作成できませんでした</div>
+                    <div class="empty-description">条件を変えて再度お試しください。</div>
+                </div>`;
+    }
+
+    let html = '';
+    data.proposals.forEach((proposal, index) => {
+        html += `
+            <div class="estimate-header">
+                <div class="estimate-title">${proposal.title || '見積もり案' + (index + 1)}</div>
+                <div class="estimate-date">${new Date().toLocaleDateString('ja-JP')}</div>
+            </div>
+            <div class="customer-info">
+                <p><strong>コンセプト:</strong> ${proposal.concept || ''}</p>
+            </div>
+            <table class="estimate-table">
+                <thead>
+                    <tr>
+                        <th>項目</th>
+                        <th>数量</th>
+                        <th>単価</th>
+                        <th>金額</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        if (proposal.items && Array.isArray(proposal.items)) {
+            proposal.items.forEach(item => {
+                const unitPrice = item.unitPrice || 0;
+                const quantity = item.quantity || 1;
+                const amount = item.amount || (unitPrice * quantity);
+
+                html += `
+                    <tr>
+                        <td>
+                            <strong>${item.name || ''}</strong><br>
+                            <small style="color: #666;">${item.description || ''}</small>
+                        </td>
+                        <td style="text-align: right; padding-right: 20px;">${quantity}</td>
+                        <td style="text-align: right;">¥${unitPrice.toLocaleString()}</td>
+                        <td style="text-align: right;">¥${amount.toLocaleString()}</td>
+                    </tr>`;
+            });
+        }
+
+        const subtotal = proposal.subtotal || 0;
+        const tax = proposal.tax || 0;
+        const total = proposal.total || 0;
+
+        html += `
+                </tbody>
+            </table>
+            <div class="estimate-summary">
+                <div class="summary-row">
+                    <span>小計</span>
+                    <span>¥${subtotal.toLocaleString()}</span>
+                </div>
+                <div class="summary-row">
+                    <span>消費税 (10%)</span>
+                    <span>¥${tax.toLocaleString()}</span>
+                </div>
+                <div class="summary-row total">
+                    <span>合計金額</span>
+                    <span>¥${total.toLocaleString()}</span>
+                </div>
+            </div>
+            <div style="margin-top: 20px;">
+                <p><strong>納期:</strong> ${proposal.deliveryPeriod || '要相談'}</p>
+                <p><strong>備考:</strong> ${proposal.notes || '特になし'}</p>
+            </div>
+            <hr style="margin: 30px 0; border: 1px dashed #e2e8f0;">`;
+    });
+
+    return html;
+}
+</script>
+
+
+</body>
+</html>
