@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 import openai
 from langchain_community.vectorstores import Chroma  # ★FAISSからChromaに変更
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.docstore.document import Document
 
 # 1. Pydanticモデル定義 (変更なし)
 class EstimateItem(BaseModel):
