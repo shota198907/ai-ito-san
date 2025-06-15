@@ -11,8 +11,7 @@ from pydantic import BaseModel, Field
 
 # openaiのインポート
 import openai
-from langchain_community.vectorstores import Chroma  # ★FAISSからChromaに変更
-from langchain.embeddings import OpenAIEmbeddings
+
 
 # 1. Pydanticモデル定義 (変更なし)
 class EstimateItem(BaseModel):
